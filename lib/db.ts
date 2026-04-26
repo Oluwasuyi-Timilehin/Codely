@@ -1,9 +1,7 @@
 import { neon } from '@neondatabase/serverless';
+import crypto from 'crypto';
 
 const sql = neon(process.env.DATABASE_URL!);
-
-// Ensure crypto is available
-import crypto from 'crypto';
 
 export async function getSnippets() {
   try {
@@ -35,13 +33,13 @@ export async function createSnippet(
   try {
     const id = crypto.randomUUID();
     const createdAt = new Date();
-    console.log('[v0] Creating snippet:', { id, title, language, tagsLength: tags.length });
+
     const result = await sql`
       INSERT INTO snippets (id, title, description, code, language, tags, created_at, updated_at) 
       VALUES (${id}, ${title}, ${description}, ${code}, ${language}, ${tags}, ${createdAt}, ${createdAt}) 
       RETURNING *
     `;
-    console.log('[v0] Snippet created successfully:', result[0]);
+
     return result[0] as any;
   } catch (error) {
     console.error('[v0] Error creating snippet:', error);
@@ -59,17 +57,41 @@ export async function updateSnippet(
 ) {
   try {
     const updatedAt = new Date();
-    console.log('[v0] Updating snippet:', { id, title, language });
+
     const result = await sql`
       UPDATE snippets 
       SET title = ${title}, description = ${description}, code = ${code}, language = ${language}, tags = ${tags}, updated_at = ${updatedAt} 
       WHERE id = ${id} 
       RETURNING *
     `;
-    console.log('[v0] Snippet updated successfully:', result[0]);
+
     return result[0] as any;
   } catch (error) {
     console.error('[v0] Error updating snippet:', error);
+    throw error;
+  }
+}
+
+export async function updateSnippetNft(
+  id: string,
+  nftTransactionHash: string,
+  nftMetadata: Record<string, unknown>
+) {
+  try {
+    const updatedAt = new Date();
+
+    const result = await sql`
+      UPDATE snippets
+      SET nft_transaction_hash = ${nftTransactionHash},
+          nft_metadata = ${JSON.stringify(nftMetadata)},
+          updated_at = ${updatedAt}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    return result[0] as any;
+  } catch (error) {
+    console.error('[v0] Error updating snippet NFT:', error);
     throw error;
   }
 }
