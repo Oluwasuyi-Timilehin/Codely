@@ -1,15 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSnippets, createSnippet } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { SnippetService } from "./snippet.service";
+import { SnippetRepository } from "./snippet.repository";
+import { ZodError } from "zod";
+
+// Dependency Injection instantiation
+const repository = new SnippetRepository();
+const service = new SnippetService(repository);
 
 export async function GET() {
   try {
-    const snippets = await getSnippets();
+    const snippets = await service.getAllSnippets();
     return NextResponse.json(snippets);
   } catch (error) {
-    console.error('[v0] Error fetching snippets:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch snippets' },
-      { status: 500 }
+      {
+        error: error instanceof Error ? error.message : "Internal Server Error",
+      },
+      { status: 500 },
     );
   }
 }
@@ -17,29 +24,21 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { title, description, code, language, tags } = body;
-
-    if (!title || !description || !code || !language || !tags || tags.length === 0) {
-      return NextResponse.json(
-        { error: 'Missing required fields: title, description, code, language, tags' },
-        { status: 400 }
-      );
-    }
-
-    const snippet = await createSnippet(
-      title,
-      description,
-      code,
-      language,
-      tags
-    );
+    const snippet = await service.createSnippet(body);
 
     return NextResponse.json(snippet, { status: 201 });
   } catch (error) {
-    console.error('[v0] Error creating snippet:', error);
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Validation failed", details: error.errors },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
-      { error: 'Failed to create snippet' },
-      { status: 500 }
+      {
+        error: error instanceof Error ? error.message : "Internal Server Error",
+      },
+      { status: 500 },
     );
   }
 }
