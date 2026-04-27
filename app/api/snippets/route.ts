@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSnippets, createSnippet } from "@/lib/db";
-import { verifyAuthentication } from "@/lib/auth-middleware";
+import { SnippetService } from "./snippet.service";
+import { SnippetRepository } from "./snippet.repository";
+import { OwnershipMiddleware } from "./ownership.middleware";
+import { ZodError } from "zod";
+
+// Dependency Injection instantiation
+const repository = new SnippetRepository();
+const service = new SnippetService(repository);
 
 export async function GET() {
   try {
-    const snippets = await getSnippets();
+    const snippets = await service.getAllSnippets();
     return NextResponse.json(snippets);
   } catch (error) {
-    console.error("[v0] Error fetching snippets:", error);
     return NextResponse.json(
-      { error: "Failed to fetch snippets" },
+      {
+        error: error instanceof Error ? error.message : "Internal Server Error",
+      },
       { status: 500 },
     );
   }
@@ -17,50 +24,51 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify authentication
-    const auth = await verifyAuthentication(req);
-    if (!auth) {
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      'unknown';
+
+    const limit = rateLimit(`snippet-create:${ip}`, {
+      windowMs: RATE_LIMIT_WINDOW_MS,
+      max: RATE_LIMIT_MAX_REQUESTS,
+    });
+
+    if (!limit.allowed) {
+      console.warn('[security] Snippet creation rate limit exceeded:', { ip });
+
       return NextResponse.json(
-        { error: "Unauthorized - Please authenticate with your wallet" },
-        { status: 401 },
+        {
+          error: 'Rate limit exceeded',
+          limit: RATE_LIMIT_MAX_REQUESTS,
+          window: `${RATE_LIMIT_WINDOW_MS / 1000}s`,
+        },
+        { status: 429 }
       );
     }
 
     const body = await req.json();
-    const { title, description, code, language, tags } = body;
 
-    if (
-      !title ||
-      !description ||
-      !code ||
-      !language ||
-      !tags ||
-      tags.length === 0
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Missing required fields: title, description, code, language, tags",
-        },
-        { status: 400 },
-      );
+    // Extract and inject the wallet address securely from headers
+    const walletAddress = OwnershipMiddleware.extractWalletAddress(req);
+    if (walletAddress) {
+      body.ownerWalletAddress = walletAddress;
     }
 
-    // Create snippet with owner (wallet address)
-    const snippet = await createSnippet(
-      title,
-      description,
-      code,
-      language,
-      tags,
-      auth.walletAddress, // Add wallet address as owner
-    );
+    const snippet = await service.createSnippet(body);
 
     return NextResponse.json(snippet, { status: 201 });
   } catch (error) {
-    console.error("[v0] Error creating snippet:", error);
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Validation failed", details: error.errors },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
-      { error: "Failed to create snippet" },
+      {
+        error: error instanceof Error ? error.message : "Internal Server Error",
+      },
       { status: 500 },
     );
   }
