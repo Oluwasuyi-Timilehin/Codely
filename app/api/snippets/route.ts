@@ -23,6 +23,29 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      'unknown';
+
+    const limit = rateLimit(`snippet-create:${ip}`, {
+      windowMs: RATE_LIMIT_WINDOW_MS,
+      max: RATE_LIMIT_MAX_REQUESTS,
+    });
+
+    if (!limit.allowed) {
+      console.warn('[security] Snippet creation rate limit exceeded:', { ip });
+
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded',
+          limit: RATE_LIMIT_MAX_REQUESTS,
+          window: `${RATE_LIMIT_WINDOW_MS / 1000}s`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const snippet = await service.createSnippet(body);
 
