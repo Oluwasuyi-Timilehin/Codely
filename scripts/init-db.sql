@@ -9,6 +9,7 @@ CREATE TABLE snippets (
   language VARCHAR(50) NOT NULL,
   code TEXT NOT NULL,
   tags JSONB DEFAULT '[]'::jsonb,
+  owner_wallet_address VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

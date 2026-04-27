@@ -28,8 +28,8 @@ export class SnippetRepository {
     const createdAt = new Date();
 
     const result = await this.sql`
-      INSERT INTO snippets (id, title, description, code, language, tags, created_at, updated_at) 
-      VALUES (${id}, ${data.title}, ${data.description}, ${data.code}, ${data.language}, ${data.tags}, ${createdAt}, ${createdAt}) 
+      INSERT INTO snippets (id, title, description, code, language, tags, owner_wallet_address, created_at, updated_at) 
+      VALUES (${id}, ${data.title}, ${data.description}, ${data.code}, ${data.language}, ${data.tags}, ${data.ownerWalletAddress}, ${createdAt}, ${createdAt}) 
       RETURNING *
     `;
     return result[0];

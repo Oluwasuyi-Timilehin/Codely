@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SnippetService } from "../snippet.service";
 import { SnippetRepository } from "../snippet.repository";
+import { OwnershipMiddleware } from "../ownership.middleware";
 import {
   createSnippetVersion,
   getVersionHistory,
@@ -12,6 +13,7 @@ import { ZodError } from "zod";
 // Dependency Injection instantiation
 const repository = new SnippetRepository();
 const service = new SnippetService(repository);
+const ownershipMiddleware = new OwnershipMiddleware();
 
 export async function GET(
   req: NextRequest,
@@ -91,6 +93,26 @@ export async function PUT(
     }
 
     // Default: update snippet via service
+    // Extract wallet address and verify ownership
+    const walletAddress = OwnershipMiddleware.extractWalletAddress(req);
+
+    if (!walletAddress) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Wallet address is required." },
+        { status: 401 },
+      );
+    }
+
+    // Verify ownership before update
+    const ownershipResult = await ownershipMiddleware.verifyOwnership(
+      id,
+      walletAddress,
+    );
+
+    if (!ownershipResult.isOwner) {
+      return ownershipResult.error!;
+    }
+
     const body = await req.json();
     const snippet = await service.updateSnippet(id, body);
 
@@ -119,6 +141,27 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // Extract wallet address and verify ownership
+    const walletAddress = OwnershipMiddleware.extractWalletAddress(req);
+
+    if (!walletAddress) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Wallet address is required." },
+        { status: 401 },
+      );
+    }
+
+    // Verify ownership before delete
+    const ownershipResult = await ownershipMiddleware.verifyOwnership(
+      id,
+      walletAddress,
+    );
+
+    if (!ownershipResult.isOwner) {
+      return ownershipResult.error!;
+    }
+
     await service.deleteSnippet(id);
 
     return NextResponse.json({ message: "Snippet deleted successfully" });
