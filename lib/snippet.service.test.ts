@@ -75,6 +75,8 @@ describe("SnippetService", () => {
         code: 'console.log("hi")',
         language: "javascript",
         tags: ["test"],
+        ownerWalletAddress:
+          "G1234567890123456789012345678901234567890123456789012345",
       };
 
       const expectedResult = { id: "1", ...validData };

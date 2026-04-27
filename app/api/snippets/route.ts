@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SnippetService } from "./snippet.service";
 import { SnippetRepository } from "./snippet.repository";
+import { OwnershipMiddleware } from "./ownership.middleware";
 import { ZodError } from "zod";
 
 // Dependency Injection instantiation
@@ -24,6 +25,13 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // Extract and inject the wallet address securely from headers
+    const walletAddress = OwnershipMiddleware.extractWalletAddress(req);
+    if (walletAddress) {
+      body.ownerWalletAddress = walletAddress;
+    }
+
     const snippet = await service.createSnippet(body);
 
     return NextResponse.json(snippet, { status: 201 });
